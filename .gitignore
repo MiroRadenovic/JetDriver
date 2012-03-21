@@ -1,0 +1,6 @@
+*.suo
+*.user
+*.dotCover
+_ReSharper.NHibernate.JetDriver/
+bin/
+obj/
