@@ -98,9 +98,10 @@ namespace NHibernate.JetDriver
         {
             if (p.Value == DBNull.Value)
                 return;
-
+            object originalValue = p.Value;
             p.DbType = DbType.String;
             p.Value = GetNormalizedDateValue((DateTime)p.Value);
+            Log.DebugFormat("Value of [{0}] has been normalized in [{1}]", originalValue, p.Value);
             AddToConvertedDate(p);
         }
 
@@ -109,10 +110,24 @@ namespace NHibernate.JetDriver
             if (!_convertedDateParameters.Contains(p))
                 return;
 
-            //Someimes two pass conversion makes a parameter value
+            //Sometimes two pass conversion makes a parameter value
             //of type DateTime to be of String Dbtype
-            DateTime date = DateTime.Parse(p.Value.ToString());
-            p.Value = GetNormalizedDateValue(date);
+            try
+            {
+                var originalValue = p.Value.ToString();
+                DateTime date = DateTime.Parse(originalValue);
+                p.Value = GetNormalizedDateValue(date);
+                Log.DebugFormat("Changing DateTime into normalized string. value of [{0}] has been normalized in [{1}]", originalValue, p.Value);
+            }
+            catch (FormatException ex)
+            {
+                // myrocode edit: unpredictably at this point I had "System.FormatException: String was not recognized as a valid DateTime."
+                // after several researches, i wasn't able to discover the cause of this error in production.
+                // suppressing this exception is definitely a dirty hacks.
+                Log.WarnFormat("Cannot convert [{0}] into a DateTime. [{0}]  Will be treated as a string. ", p.Value);
+            }
+
+         
         }
 
         private void FixLongValue(IDataParameter p)
