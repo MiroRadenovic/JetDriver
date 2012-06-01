@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.Common;
 using System.Data.OleDb;
 using System.Globalization;
+using System.Text;
 
 namespace NHibernate.JetDriver
 {
@@ -68,6 +69,15 @@ namespace NHibernate.JetDriver
         {
             if (Command.Parameters.Count == 0) return;
 
+            Log.DebugFormat("Check Parameters is called with following commnadText: [{0}] ", Command.CommandText);
+            var sb = new StringBuilder();
+            for (int i = 0; i < Command.Parameters.Count; i++)
+            {
+                sb.AppendLine("p" + i + " = " + Command.Parameters[i].Value);
+            }
+
+            Log.DebugFormat(sb.ToString());
+
             foreach (IDataParameter p in Command.Parameters)
             {
                 if (p.Direction == ParameterDirection.Output || 
@@ -107,17 +117,21 @@ namespace NHibernate.JetDriver
 
         private void FixStringValue(IDataParameter p)
         {
-            if (!_convertedDateParameters.Contains(p))
+            if (p.Value == DBNull.Value)
                 return;
 
             //Sometimes two pass conversion makes a parameter value
-            //of type DateTime to be of String Dbtype
+            //of type DateTime to be of String Dbtype.
+            //If this parameter is a already converted then it must be a datetime and a normalization must be done, otherwise return
+            if (!_convertedDateParameters.Contains(p))
+                return;
+
             try
             {
                 var originalValue = p.Value.ToString();
                 DateTime date = DateTime.Parse(originalValue);
                 p.Value = GetNormalizedDateValue(date);
-                Log.DebugFormat("Changing DateTime into normalized string. value of [{0}] has been normalized in [{1}]", originalValue, p.Value);
+                Log.DebugFormat("Value of [{0}] has been normalized in [{1}]", originalValue, p.Value);
             }
             catch (FormatException ex)
             {
@@ -125,6 +139,8 @@ namespace NHibernate.JetDriver
                 // after several researches, i wasn't able to discover the cause of this error in production.
                 // suppressing this exception is definitely a dirty hacks.
                 Log.WarnFormat("Cannot convert [{0}] into a DateTime. [{0}]  Will be treated as a string. ", p.Value);
+                Log.WarnFormat("Paramenter name is [{0}]  is type of [{1}]", p.ParameterName, p.Value.GetType());
+                Log.WarnFormat("DbType is: [{0}]", p.DbType);
             }
 
          
